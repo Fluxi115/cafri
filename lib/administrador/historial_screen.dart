@@ -2,153 +2,311 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-class HistorialScreen extends StatefulWidget {
-  const HistorialScreen({super.key});
+class HistorialActividadesScreen extends StatefulWidget {
+  const HistorialActividadesScreen({super.key});
 
   @override
-  State<HistorialScreen> createState() => _HistorialScreenState();
+  State<HistorialActividadesScreen> createState() => _HistorialActividadesScreenState();
 }
 
-class _HistorialScreenState extends State<HistorialScreen> {
-  String? _selectedColaborador;
-  List<Map<String, dynamic>> _colaboradores = [];
+class _HistorialActividadesScreenState extends State<HistorialActividadesScreen> {
+  DateTime? _fechaInicio;
+  DateTime? _fechaFin;
+  String? _colaboradorSeleccionado;
+  String? _tipoSeleccionado;
+
+  List<String> _colaboradores = [];
+  List<String> _tipos = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchColaboradores();
+    _cargarColaboradoresYTipos();
   }
 
-  Future<void> _fetchColaboradores() async {
+  Future<void> _cargarColaboradoresYTipos() async {
     final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .where('rol', isEqualTo: 'colaborador')
+        .collection('actividades')
+        .where('estado', isEqualTo: 'terminada')
         .get();
-    final nuevosColaboradores = snapshot.docs
-        .map((doc) => {
-              'email': doc['email'],
-              'name': doc['name'] ?? doc['email'],
-            })
-        .toList();
 
-    setState(() {
-      // Solo resetea si el colaborador seleccionado ya no existe
-      if (_selectedColaborador != null &&
-          !nuevosColaboradores.any((col) => col['email'] == _selectedColaborador)) {
-        _selectedColaborador = null;
+    final colaboradoresSet = <String>{};
+    final tiposSet = <String>{};
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      if (data['colaborador'] != null && data['colaborador'].toString().isNotEmpty) {
+        colaboradoresSet.add(data['colaborador']);
       }
-      _colaboradores = nuevosColaboradores;
+      if (data['tipo'] != null && data['tipo'].toString().isNotEmpty) {
+        tiposSet.add(data['tipo']);
+      }
+    }
+    setState(() {
+      _colaboradores = colaboradoresSet.toList()..sort();
+      _tipos = tiposSet.toList()..sort();
     });
   }
 
-  Stream<QuerySnapshot> _getHistorialStream() {
-    if (_selectedColaborador == null || _selectedColaborador!.isEmpty) {
-      // No mostrar nada si no hay colaborador seleccionado
-      return const Stream.empty();
-    }
-    return FirebaseFirestore.instance
-        .collection('actividades')
-        .where('colaborador', isEqualTo: _selectedColaborador)
-        .where('estado', isEqualTo: 'terminada')
-        .orderBy('fecha', descending: true)
-        .snapshots();
+  bool _pasaFiltros(Map<String, dynamic> data) {
+    final fecha = (data['fecha'] as Timestamp).toDate();
+    if (_fechaInicio != null && fecha.isBefore(_fechaInicio!)) return false;
+    if (_fechaFin != null && fecha.isAfter(_fechaFin!)) return false;
+    if (_colaboradorSeleccionado != null && _colaboradorSeleccionado!.isNotEmpty && data['colaborador'] != _colaboradorSeleccionado) return false;
+    if (_tipoSeleccionado != null && _tipoSeleccionado!.isNotEmpty && data['tipo'] != _tipoSeleccionado) return false;
+    return true;
+  }
+
+  void _mostrarDetallesActividad(Map<String, dynamic> data) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Detalles de la actividad'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detalle('Colaborador', data['colaborador']),
+              _detalle('Tipo', data['tipo']),
+              _detalle('Descripción', data['descripcion']),
+              _detalle('Fecha', DateFormat('dd/MM/yyyy – HH:mm').format((data['fecha'] as Timestamp).toDate())),
+              _detalle('Dirección', data['direccion_manual']),
+              _detalle('Ubicación', data['ubicacion']),
+              _detalle('Latitud', data['lat']?.toString()),
+              _detalle('Longitud', data['lng']?.toString()),
+              _detalle('Estado', data['estado']),
+              _detalle('Creado', data['creado'] != null ? DateFormat('dd/MM/yyyy – HH:mm').format((data['creado'] as Timestamp).toDate()) : ''),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detalle(String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historial de actividades finalizadas'),
+        title: const Text('Historial de actividades terminadas'),
         backgroundColor: Colors.indigo,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              value: _selectedColaborador,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Selecciona un colaborador',
-                border: OutlineInputBorder(),
-              ),
-              items: _colaboradores
-                  .map((col) => DropdownMenuItem<String>(
-                        value: col['email'],
-                        child: Text(col['name']),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedColaborador = value;
-                });
-              },
+      body: Column(
+        children: [
+          // Filtros
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                // Fecha inicio
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.date_range),
+                  label: Text(_fechaInicio == null
+                      ? 'Desde'
+                      : DateFormat('dd/MM/yyyy').format(_fechaInicio!)),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _fechaInicio ?? DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _fechaInicio = picked;
+                      });
+                    }
+                  },
+                ),
+                // Fecha fin
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.date_range),
+                  label: Text(_fechaFin == null
+                      ? 'Hasta'
+                      : DateFormat('dd/MM/yyyy').format(_fechaFin!)),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _fechaFin ?? DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _fechaFin = picked;
+                      });
+                    }
+                  },
+                ),
+                // Colaborador
+                DropdownButton<String>(
+                  value: _colaboradorSeleccionado,
+                  hint: const Text('Colaborador'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Todos')),
+                    ..._colaboradores.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _colaboradorSeleccionado = value;
+                    });
+                  },
+                ),
+                // Tipo de actividad
+                DropdownButton<String>(
+                  value: _tipoSeleccionado,
+                  hint: const Text('Tipo'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Todos')),
+                    ..._tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _tipoSeleccionado = value;
+                    });
+                  },
+                ),
+                // Botón limpiar filtros
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Limpiar filtros',
+                  onPressed: () {
+                    setState(() {
+                      _fechaInicio = null;
+                      _fechaFin = null;
+                      _colaboradorSeleccionado = null;
+                      _tipoSeleccionado = null;
+                    });
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _selectedColaborador == null
-                  ? const Center(
-                      child: Text(
-                        'Selecciona un colaborador para ver su historial.',
-                        style: TextStyle(fontSize: 16, color: Colors.black54),
-                      ),
-                    )
-                  : StreamBuilder<QuerySnapshot>(
-                      stream: _getHistorialStream(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'No hay actividades finalizadas para este colaborador.',
-                              style: TextStyle(fontSize: 16, color: Colors.black54),
-                            ),
-                          );
-                        }
-                        final actividades = snapshot.data!.docs;
-                        return ListView.builder(
-                          itemCount: actividades.length,
-                          itemBuilder: (context, index) {
-                            final actividad = actividades[index].data() as Map<String, dynamic>;
-                            final fecha = (actividad['fecha'] as Timestamp).toDate();
-                            return Card(
-                              elevation: 4,
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              child: ListTile(
-                                leading: const Icon(Icons.done_all, color: Colors.green),
-                                title: Text(
-                                  actividad['descripcion'] ?? 'Sin descripción',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      DateFormat('dd/MM/yyyy – HH:mm').format(fecha),
-                                    ),
-                                    if ((actividad['tipo'] ?? '').isNotEmpty)
-                                      Text(
-                                        'Tipo: ${actividad['tipo']}',
-                                        style: const TextStyle(color: Colors.black54),
-                                      ),
-                                    if ((actividad['direccion_manual'] ?? '').isNotEmpty)
-                                      Text(
-                                        'Dirección: ${actividad['direccion_manual']}',
-                                        style: const TextStyle(color: Colors.black54),
-                                      ),
-                                  ],
+          ),
+          const Divider(height: 1),
+          // Lista de actividades
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('actividades')
+                  .where('estado', isEqualTo: 'terminada')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No hay actividades terminadas.',
+                      style: TextStyle(fontSize: 18, color: Colors.black54),
+                    ),
+                  );
+                }
+
+                // Agrupar por colaborador
+                final actividadesPorColaborador = <String, List<QueryDocumentSnapshot>>{};
+                for (var doc in snapshot.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  if (_pasaFiltros(data)) {
+                    final colaborador = data['colaborador'] ?? 'Sin colaborador';
+                    actividadesPorColaborador.putIfAbsent(colaborador, () => []).add(doc);
+                  }
+                }
+
+                if (actividadesPorColaborador.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No hay actividades que coincidan con los filtros.',
+                      style: TextStyle(fontSize: 18, color: Colors.black54),
+                    ),
+                  );
+                }
+
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: actividadesPorColaborador.entries.map((entry) {
+                    final colaborador = entry.key;
+                    final actividades = entry.value;
+                    // Ordenar por fecha descendente
+                    actividades.sort((a, b) {
+                      final fa = (a['fecha'] as Timestamp).toDate();
+                      final fb = (b['fecha'] as Timestamp).toDate();
+                      return fb.compareTo(fa);
+                    });
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          colaborador,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...actividades.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final fecha = (data['fecha'] as Timestamp).toDate();
+                          return Card(
+                            elevation: 4,
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: ListTile(
+                              leading: Icon(
+                                data['tipo'] == 'levantamiento'
+                                    ? Icons.assignment
+                                    : data['tipo'] == 'mantenimiento'
+                                        ? Icons.build
+                                        : Icons.settings_input_component,
+                                color: Colors.indigo,
+                              ),
+                              title: Text(
+                                data['descripcion'] ?? 'Sin descripción',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Text(
+                                DateFormat('dd/MM/yyyy – HH:mm').format(fecha),
+                              ),
+                              trailing: Text(
+                                data['tipo']?.toString().toUpperCase() ?? '',
+                                style: const TextStyle(
+                                  color: Colors.blueGrey,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              onTap: () => _mostrarDetallesActividad(data),
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  }).toList(),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

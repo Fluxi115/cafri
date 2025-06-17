@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-class Calendarcolabact extends StatefulWidget {
-  /// Si se pasa userEmail, filtra por colaborador. Si es null, muestra todas las actividades.
-  final String? userEmail;
-  const Calendarcolabact({super.key, this.userEmail});
+class CalendarAdminScreen extends StatefulWidget {
+  const CalendarAdminScreen({super.key});
 
   @override
-  State<Calendarcolabact> createState() => _CalendarcolabactState();
+  State<CalendarAdminScreen> createState() => _CalendarAdminScreenState();
 }
 
-class _CalendarcolabactState extends State<Calendarcolabact> {
+class _CalendarAdminScreenState extends State<CalendarAdminScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
@@ -20,19 +18,13 @@ class _CalendarcolabactState extends State<Calendarcolabact> {
     final primerDia = DateTime(_focusedDay.year, _focusedDay.month, 1);
     final ultimoDia = DateTime(_focusedDay.year, _focusedDay.month + 1, 0, 23, 59, 59);
 
-    // Construye la consulta: si hay userEmail, filtra; si no, muestra todas
-    Query actividadesQuery = FirebaseFirestore.instance
-        .collection('actividades')
-        .where('fecha', isGreaterThanOrEqualTo: primerDia)
-        .where('fecha', isLessThanOrEqualTo: ultimoDia)
-        .orderBy('fecha');
-
-    if (widget.userEmail != null && widget.userEmail!.isNotEmpty) {
-      actividadesQuery = actividadesQuery.where('colaborador', isEqualTo: widget.userEmail);
-    }
-
     return StreamBuilder<QuerySnapshot>(
-      stream: actividadesQuery.snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('actividades')
+          .where('fecha', isGreaterThanOrEqualTo: primerDia)
+          .where('fecha', isLessThanOrEqualTo: ultimoDia)
+          .orderBy('fecha')
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));

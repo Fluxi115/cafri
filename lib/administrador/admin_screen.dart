@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cafri/administrador/calendaradmin_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cafri/administrador/historial_screen.dart';
+import 'package:cafri/administrador/calendarioacti_screen.dart'; // Importa el calendario global
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -66,26 +67,19 @@ class _AdminScreenState extends State<AdminScreen> {
     } else if (value == 'historial') {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const HistorialScreen()),
+        MaterialPageRoute(builder: (_) => const HistorialActividadesScreen()),
       );
     } else if (value == 'agendar') {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const CalendarPage()),
       );
-    } else if (value == 'ver_calendario') {
-      // Para el admin, muestra el calendario general (CalendarPage)
+    } else if (value == 'calendario') {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const CalendarPage()),
+        MaterialPageRoute(builder: (_) => const CalendarAdminScreen()), // calendarioacti_screen.dart
       );
-      // Si quieres ver el calendario de un colaborador específico, usa:
-      // Navigator.push(
-      //   context,
-      //   MaterialPageRoute(builder: (_) => ColaboradorCalendario(userEmail: 'correo@colaborador.com')),
-      // );
     }
-    // Puedes agregar más lógica aquí para otras opciones.
   }
 
   /// Ejemplo de función para crear una nueva actividad con 'estado':'pendiente'
@@ -156,9 +150,9 @@ class _AdminScreenState extends State<AdminScreen> {
               onTap: () => _handleDrawerSelection('historial'),
             ),
             ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Ver Calendario'),
-              onTap: () => _handleDrawerSelection('ver_calendario'),
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Calendario'),
+              onTap: () => _handleDrawerSelection('calendario'),
             ),
             const Divider(),
             ListTile(
