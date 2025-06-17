@@ -3,19 +3,22 @@
 import 'package:flutter/material.dart';
 import 'package:cafri/autentificacion/auth_service.dart';
 import 'package:cafri/autentificacion/login_screen.dart';
+import 'package:cafri/administrador/registeruser_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cafri/administrador/calendaradmin_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cafri/administrador/historial_screen.dart';
 
-final AuthService _authService = AuthService();
-
-class ColaboradorScreen extends StatefulWidget {
-  const ColaboradorScreen({super.key});
+class AdminScreen extends StatefulWidget {
+  const AdminScreen({super.key});
 
   @override
-  State<ColaboradorScreen> createState() => _ColaboradorScreenState();
+  State<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _ColaboradorScreenState extends State<ColaboradorScreen> {
-  late String userEmail;
+class _AdminScreenState extends State<AdminScreen> {
+  String userEmail = '';
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -55,15 +58,66 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       }
+    } else if (value == 'agregar_nuevo_usuario') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const RegisteruserScreen()),
+      );
+    } else if (value == 'historial') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const HistorialScreen()),
+      );
+    } else if (value == 'agendar') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CalendarPage()),
+      );
+    } else if (value == 'ver_calendario') {
+      // Para el admin, muestra el calendario general (CalendarPage)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CalendarPage()),
+      );
+      // Si quieres ver el calendario de un colaborador específico, usa:
+      // Navigator.push(
+      //   context,
+      //   MaterialPageRoute(builder: (_) => ColaboradorCalendario(userEmail: 'correo@colaborador.com')),
+      // );
     }
     // Puedes agregar más lógica aquí para otras opciones.
+  }
+
+  /// Ejemplo de función para crear una nueva actividad con 'estado':'pendiente'
+  Future<void> crearNuevaActividad({
+    required String colaborador,
+    required DateTime fecha,
+    required String descripcion,
+    required String tipo,
+    String? direccionManual,
+    String? ubicacion,
+    double? lat,
+    double? lng,
+  }) async {
+    await FirebaseFirestore.instance.collection('actividades').add({
+      'colaborador': colaborador,
+      'fecha': fecha,
+      'descripcion': descripcion,
+      'tipo': tipo,
+      'direccion_manual': direccionManual ?? '',
+      'ubicacion': ubicacion ?? '',
+      'lat': lat,
+      'lng': lng,
+      'estado': 'pendiente', // <-- SIEMPRE incluir este campo al crear
+      'creado': FieldValue.serverTimestamp(),
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Panel de Colaborador'),
+        title: const Text('Panel de Administración'),
         backgroundColor: Colors.indigo,
       ),
       drawer: Drawer(
@@ -74,27 +128,37 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
               decoration: const BoxDecoration(
                 color: Colors.indigo,
               ),
-              accountName: const Text('Colaborador'),
+              accountName: const Text('Administrador'),
               accountEmail: Text(userEmail),
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Colors.indigo, size: 40),
+                child: Icon(Icons.admin_panel_settings, color: Colors.indigo, size: 40),
               ),
             ),
             ListTile(
               leading: const Icon(Icons.info),
-              title: const Text('Información'),
-              onTap: () => _handleDrawerSelection('informacion'),
+              title: const Text('menu'),
+              onTap: () => _handleDrawerSelection('menu'),
             ),
             ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: const Text('Actividades'),
-              onTap: () => _handleDrawerSelection('actividades'),
+              leading: const Icon(Icons.event),
+              title: const Text('Agendar'),
+              onTap: () => _handleDrawerSelection('agendar'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('Agregar nuevo usuario'),
+              onTap: () => _handleDrawerSelection('agregar_nuevo_usuario'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Historial de Actividades'),
+              onTap: () => _handleDrawerSelection('historial'),
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Calendario de actividades'),
-              onTap: () => _handleDrawerSelection('calendario_actividades'),
+              title: const Text('Ver Calendario'),
+              onTap: () => _handleDrawerSelection('ver_calendario'),
             ),
             const Divider(),
             ListTile(
@@ -124,10 +188,10 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.person, size: 64, color: Colors.indigo),
+                  const Icon(Icons.admin_panel_settings, size: 64, color: Colors.indigo),
                   const SizedBox(height: 16),
                   const Text(
-                    '¡Bienvenido, Colaborador!',
+                    '¡Bienvenido, Administrador!',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -136,7 +200,7 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Consulta tu información, actividades y calendario desde este panel.',
+                    'Gestiona clientes, agenda y más desde este panel.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.black54),
                   ),

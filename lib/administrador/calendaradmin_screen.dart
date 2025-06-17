@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geocoding/geocoding.dart';
-import 'location_picker.dart';
+import '../calendar/location_picker.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -76,6 +76,8 @@ class _CalendarPageState extends State<CalendarPage> {
     };
 
     if (docId == null) {
+      // Al crear, agrega el campo 'estado'
+      data['estado'] = 'pendiente';
       await FirebaseFirestore.instance.collection('actividades').add(data);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Actividad guardada')),

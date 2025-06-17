@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cafri/autentificacion/auth_service.dart';
-import 'package:cafri/autentificacion/admin_screen.dart';
-import 'package:cafri/autentificacion/colaborador_screen.dart';
+import 'package:cafri/administrador/admin_screen.dart';
+import 'package:cafri/colaborador/colaborador_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,11 +33,19 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _login() async {
-    setState(() {
-      _isLoading = true;
-    });
+void _login() async {
+  if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Por favor, completa todos los campos')),
+    );
+    return;
+  }
 
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
     String? result = await _authService.loginUser(
       email: _emailController.text,
       password: _passwordController.text,
@@ -50,23 +58,27 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result == 'administrador') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const AdminScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const AdminScreen()),
       );
     } else if (result == 'colaborador') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const ColaboradorScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const ColaboradorScreen()),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Error al iniciar sesión: $result'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al iniciar sesión: $result')),
+      );
     }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Ocurrió un error: $e')),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
