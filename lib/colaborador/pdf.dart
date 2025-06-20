@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -146,6 +148,64 @@ class _FormularioPDFState extends State<FormularioPDF> {
     });
   }
 
+  // Encabezado con logo y datos empresariales de CAFRI
+  Widget _encabezadoCafri() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Logo a la izquierda
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              "lib/assets/cafrilogo.jpg", // Asegúrate de tener el logo en esta ruta
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Datos empresariales
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'HOJA DE SERVICIO',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'COMPAÑÍA DE AIRE ACONDICIONADO Y FRIGORIFICOS DEL SURESTE S.A. DE C.V.',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text('Teléfono: (999) 102 1232'),
+                Text('Número de identificación empresarial: AAF2306305G0'),
+                Text('Email: contacto@cafrimx.com'),
+                Text('Dirección: C. 59K N°537 POR 112 Y 114 COL. BOJORQUEZ C.P 97230'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fechaActual = DateTime.now();
@@ -163,6 +223,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
         child: SingleChildScrollView(
           child: Column(
             children: [
+              _encabezadoCafri(), // <--- Encabezado con logo y datos empresariales
               // Información del cliente
               _seccionConTitulo(
                 'Información del cliente',
@@ -614,7 +675,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
                                 ),
                               ),
                               Container(
-                                height: 100,
+                                height: 160,
                                 margin: const EdgeInsets.symmetric(horizontal: 8),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: Colors.black26),
@@ -666,7 +727,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
                                 ),
                               ),
                               Container(
-                                height: 100,
+                                height: 160,
                                 margin: const EdgeInsets.symmetric(horizontal: 8),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: Colors.black26),
