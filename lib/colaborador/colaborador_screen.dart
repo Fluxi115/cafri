@@ -8,11 +8,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cafri/colaborador/calendarcolab_screen.dart';
+import 'package:cafri/colaborador/pdf.dart'; // Importa el widget PDF
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
-enum ColaboradorSection { informacion, actividades, calendario }
+// 1. Cambia el valor pdf a documento en el enum
+enum ColaboradorSection { informacion, actividades, calendario, documento }
 
 class ColaboradorScreen extends StatefulWidget {
   const ColaboradorScreen({super.key});
@@ -362,6 +364,12 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
               selected: selectedSection == ColaboradorSection.calendario,
               onTap: () => _handleDrawerSelection(ColaboradorSection.calendario),
             ),
+            ListTile(
+              leading: const Icon(Icons.description),
+              title: const Text('Generar documento'),
+              selected: selectedSection == ColaboradorSection.documento,
+              onTap: () => _handleDrawerSelection(ColaboradorSection.documento),
+            ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.exit_to_app, color: Colors.red),
@@ -380,6 +388,8 @@ class _ColaboradorScreenState extends State<ColaboradorScreen> {
               return _buildActividades();
             case ColaboradorSection.calendario:
               return _buildCalendario();
+            case ColaboradorSection.documento:
+              return const FormularioPDF();
           }
         },
       ),
