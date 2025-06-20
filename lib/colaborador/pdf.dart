@@ -1,10 +1,11 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class FormularioPDF extends StatefulWidget {
   const FormularioPDF({super.key});
@@ -16,7 +17,6 @@ class FormularioPDF extends StatefulWidget {
 class _FormularioPDFState extends State<FormularioPDF> {
   // Controladores de texto para los campos principales
   final TextEditingController campoNombreCliente = TextEditingController();
-  final TextEditingController campoOtraInfo = TextEditingController();
   final TextEditingController hablarcon = TextEditingController();
   final TextEditingController identificacion = TextEditingController();
   final TextEditingController actividadParaController = TextEditingController();
@@ -53,12 +53,11 @@ class _FormularioPDFState extends State<FormularioPDF> {
   @override
   void initState() {
     super.initState();
-    folioActual = _folioGlobal++;
+    folioActual = _folioGlobal;
   }
 
   // Método para mostrar el diálogo de firma y pedir nombre
   Future<void> _firmar(SignatureController controller, String titulo, TextEditingController nombreController, bool esTecnico) async {
-    // Precargar el nombre si ya existe
     if (esTecnico && nombreTecnico != null) {
       nombreController.text = nombreTecnico!;
     } else if (!esTecnico && nombreRecibe != null) {
@@ -131,7 +130,6 @@ class _FormularioPDFState extends State<FormularioPDF> {
     }
   }
 
-  // Método para eliminar la firma y el nombre
   void _eliminarFirma(bool esTecnico) {
     setState(() {
       if (esTecnico) {
@@ -148,7 +146,6 @@ class _FormularioPDFState extends State<FormularioPDF> {
     });
   }
 
-  // Encabezado con logo y datos empresariales de CAFRI
   Widget _encabezadoCafri() {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -161,18 +158,16 @@ class _FormularioPDFState extends State<FormularioPDF> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo a la izquierda
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
-              "lib/assets/cafrilogo.jpg", // Asegúrate de tener el logo en esta ruta
+              "lib/assets/cafrilogo.jpg",
               width: 80,
               height: 80,
               fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 16),
-          // Datos empresariales
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,6 +201,101 @@ class _FormularioPDFState extends State<FormularioPDF> {
     );
   }
 
+  Widget _imagenesEvaporadoresWidget() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Imágenes de evaporadores/condensadores',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ...imagenesEvaporadores.map((img) => Stack(
+              alignment: Alignment.topRight,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    img,
+                    width: 90,
+                    height: 90,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel, color: Colors.red, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      imagenesEvaporadores.remove(img);
+                    });
+                  },
+                ),
+              ],
+            )),
+            GestureDetector(
+              onTap: () async {
+                final picker = ImagePicker();
+                final XFile? picked = await picker.pickImage(source: ImageSource.camera);
+                if (picked != null) {
+                  setState(() {
+                    imagenesEvaporadores.add(File(picked.path));
+                  });
+                }
+              },
+              child: Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey),
+                ),
+                child: const Icon(Icons.add_a_photo, size: 32, color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _firmaWidget({
+    required String titulo,
+    required Uint8List? firma,
+    required String? nombre,
+    required VoidCallback onFirmar,
+    required VoidCallback onEliminar,
+  }) {
+    return Column(
+      children: [
+        Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        if (firma != null)
+          Column(
+            children: [
+              Image.memory(firma, height: 60),
+              if (nombre != null) Text(nombre),
+              TextButton.icon(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                label: const Text('Eliminar firma', style: TextStyle(color: Colors.red)),
+                onPressed: onEliminar,
+              ),
+            ],
+          )
+        else
+          ElevatedButton.icon(
+            icon: const Icon(Icons.edit),
+            label: const Text('Firmar'),
+            onPressed: onFirmar,
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fechaActual = DateTime.now();
@@ -223,579 +313,214 @@ class _FormularioPDFState extends State<FormularioPDF> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              _encabezadoCafri(), // <--- Encabezado con logo y datos empresariales
-              // Información del cliente
-              _seccionConTitulo(
-                'Información del cliente',
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: campoNombreCliente,
-                            decoration: const InputDecoration(
-                              labelText: 'Nombre del cliente',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: campoOtraInfo,
-                            decoration: const InputDecoration(
-                              labelText: 'Otra información',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Hablar con:',
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              TextField(
-                                controller: hablarcon,
-                                decoration: const InputDecoration(
-                                  labelText: 'Ingrese nombre con el que hablará',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Tipo de tarea:',
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              TextField(
-                                controller: identificacion,
-                                decoration: const InputDecoration(
-                                  labelText: 'Identificación Persona/Empresarial',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              _encabezadoCafri(),
+              // Folio autoincremental (solo lectura)
+              Row(
+                children: [
+                  const Text(
+                    'Folio (Tarea): ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    folioActual.toString(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ],
               ),
-              const SizedBox(height: 32),
-              // Información de las actividades
+              const SizedBox(height: 8),
+              TextField(
+                controller: campoNombreCliente,
+                decoration: const InputDecoration(labelText: 'Nombre del cliente'),
+              ),
+              TextField(
+                controller: hablarcon,
+                decoration: const InputDecoration(labelText: 'Hablar con'),
+              ),
+              TextField(
+                controller: identificacion,
+                decoration: const InputDecoration(labelText: 'Identificación'),
+              ),
+              const SizedBox(height: 16),
               _seccionConTitulo(
                 'Información de las actividades',
                 Column(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: const Text(
-                              'Para:',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: actividadParaController,
-                            decoration: const InputDecoration(
-                              labelText: 'Escriba aquí',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 1,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: const Text(
-                              'Tipo de tarea:',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: actividadTipoTareaController,
-                            decoration: const InputDecoration(
-                              labelText: 'Escriba aquí',
-                            ),
-                          ),
-                        ),
-                      ],
+                    TextField(
+                      controller: actividadParaController,
+                      decoration: const InputDecoration(labelText: 'Para'),
                     ),
-                    const SizedBox(height: 24),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: const Text(
-                              'Fecha:',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              fechaFormateada,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 1,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: const Text(
-                              'Descripción de la tarea:',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: descripcionTareaController,
-                            decoration: const InputDecoration(
-                              labelText: 'Escriba aquí',
-                            ),
-                            maxLines: 2,
-                          ),
-                        ),
-                      ],
+                    TextField(
+                      controller: actividadTipoTareaController,
+                      decoration: const InputDecoration(labelText: 'Tipo de tarea'),
+                    ),
+                    TextField(
+                      controller: descripcionTareaController,
+                      decoration: const InputDecoration(labelText: 'Descripción de la tarea'),
+                      maxLines: 2,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              // Secciones de fotos
+              const SizedBox(height: 16),
               _seccionConTitulo(
-                'Formulario de mantenimiento preventivo y correctivo de aire acondicionado',
+                'MODELO, SERIE, CAPACIDAD DE CONDENSADORES',
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: modeloEvaporadorController,
+                        decoration: const InputDecoration(labelText: 'Modelo'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: serieEvaporadorController,
+                        decoration: const InputDecoration(labelText: 'Serie'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: capacidadEvaporadorController,
+                        decoration: const InputDecoration(labelText: 'Capacidad'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _imagenesEvaporadoresWidget(),
+              const SizedBox(height: 16),
+              _seccionConTitulo(
+                'Fotos de inicio del servicio',
                 FotoDescripcionLista(
                   encabezadoFoto: 'Foto',
-                  encabezadoDescripcion: 'Descripción del inicio del servicio',
+                  encabezadoDescripcion: 'Descripción',
                   items: fotosMantenimientoInicio,
                   onAdd: (item) => setState(() => fotosMantenimientoInicio.add(item)),
                   onRemove: (idx) => setState(() => fotosMantenimientoInicio.removeAt(idx)),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
               _seccionConTitulo(
-                'Formulario de mantenimiento preventivo y correctivo de aire acondicionado',
+                'Fotos de proceso del servicio',
                 FotoDescripcionLista(
                   encabezadoFoto: 'Foto',
-                  encabezadoDescripcion: 'Descripción del proceso del servicio',
+                  encabezadoDescripcion: 'Descripción',
                   items: fotosMantenimientoProceso,
                   onAdd: (item) => setState(() => fotosMantenimientoProceso.add(item)),
                   onRemove: (idx) => setState(() => fotosMantenimientoProceso.removeAt(idx)),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
               _seccionConTitulo(
-                'Formulario de mantenimiento preventivo y correctivo de aire acondicionado',
+                'Fotos de fin del servicio',
                 FotoDescripcionLista(
                   encabezadoFoto: 'Foto',
-                  encabezadoDescripcion: 'Descripción del fin del servicio',
+                  encabezadoDescripcion: 'Descripción',
                   items: fotosMantenimientoFin,
                   onAdd: (item) => setState(() => fotosMantenimientoFin.add(item)),
                   onRemove: (idx) => setState(() => fotosMantenimientoFin.removeAt(idx)),
                 ),
               ),
-              const SizedBox(height: 32),
-              // Título para la tabla de condensadores/evaporadores
-              Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE0E0E0),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(8),
-                    topRight: Radius.circular(8),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: const Center(
-                  child: Text(
-                    'MODELO, SERIE, CAPACIDAD DE CONDENSADORES',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
+              const SizedBox(height: 16),
+              _seccionConTitulo(
+                'Descripción del trabajo realizado',
+                TextField(
+                  controller: descripcionTrabajoRealizadoController,
+                  decoration: const InputDecoration(labelText: 'Descripción'),
+                  maxLines: 3,
                 ),
               ),
-              // Tabla de Modelo, Serie y Capacidad de evaporadores
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            color: const Color(0xFFE0E0E0),
-                            child: const Center(
-                              child: Text(
-                                'Modelo',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            color: const Color(0xFFE0E0E0),
-                            child: const Center(
-                              child: Text(
-                                'Serie',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            color: const Color(0xFFE0E0E0),
-                            child: const Center(
-                              child: Text(
-                                'Capacidad de equipos',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: modeloEvaporadorController,
-                              decoration: const InputDecoration(
-                                hintText: 'Modelo de equipo',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: serieEvaporadorController,
-                              decoration: const InputDecoration(
-                                hintText: 'Serie de equipo',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: capacidadEvaporadorController,
-                              decoration: const InputDecoration(
-                                hintText: 'Capacidad de equipo',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Opción para cargar, mostrar y eliminar varias imágenes
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.image),
-                    label: const Text('Cargar imagen o foto'),
-                    onPressed: () async {
-                      final picker = ImagePicker();
-                      final List<XFile> picked = await picker.pickMultiImage();
-                      if (picked.isNotEmpty) {
-                        setState(() {
-                          imagenesEvaporadores.addAll(picked.map((x) => File(x.path)));
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (imagenesEvaporadores.isEmpty)
-                    const Text('No hay imágenes agregadas.'),
-                  if (imagenesEvaporadores.isNotEmpty)
-                    SizedBox(
-                      height: 120,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: imagenesEvaporadores.length,
-                        itemBuilder: (context, index) {
-                          return Stack(
-                            alignment: Alignment.topRight,
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.all(8),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    imagenesEvaporadores[index],
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 4,
-                                top: 4,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      imagenesEvaporadores.removeAt(index);
-                                    });
-                                  },
-                                  child: Container(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.close, color: Colors.white, size: 20),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                  Expanded(
+                    child: _firmaWidget(
+                      titulo: 'Firma del técnico',
+                      firma: firmaTecnico,
+                      nombre: nombreTecnico,
+                      onFirmar: () => _firmar(
+                        firmaTecnicoController,
+                        'Firma del técnico',
+                        nombreTecnicoDialogController,
+                        true,
                       ),
+                      onEliminar: () => _eliminarFirma(true),
                     ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _firmaWidget(
+                      titulo: 'Firma de quien recibe',
+                      firma: firmaRecibe,
+                      nombre: nombreRecibe,
+                      onFirmar: () => _firmar(
+                        firmaRecibeController,
+                        'Firma de quien recibe',
+                        nombreRecibeDialogController,
+                        false,
+                      ),
+                      onEliminar: () => _eliminarFirma(false),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 32),
-              // Descripción del trabajo realizado
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE0E0E0),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          topRight: Radius.circular(8),
-                        ),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Descripción del trabajo realizado',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        controller: descripcionTrabajoRealizadoController,
-                        decoration: const InputDecoration(
-                          hintText: 'Escriba aquí la descripción del trabajo realizado',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Tabla de firmas
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: Text(
-                                  'Firma del técnico',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Container(
-                                height: 160,
-                                margin: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black26),
-                                ),
-                                child: firmaTecnico != null
-                                    ? Image.memory(firmaTecnico!)
-                                    : const Center(child: Text('Sin firma')),
-                              ),
-                              if (nombreTecnico != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4.0),
-                                  child: Text(
-                                    nombreTecnico!,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  TextButton.icon(
-                                    icon: const Icon(Icons.edit),
-                                    label: const Text('Firmar'),
-                                    onPressed: () => _firmar(
-                                      firmaTecnicoController,
-                                      'Firma del técnico',
-                                      nombreTecnicoDialogController,
-                                      true,
-                                    ),
-                                  ),
-                                  if (firmaTecnico != null)
-                                    TextButton.icon(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      label: const Text('Eliminar'),
-                                      onPressed: () => _eliminarFirma(true),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: Text(
-                                  'Firma de quien recibe el servicio',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Container(
-                                height: 160,
-                                margin: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black26),
-                                ),
-                                child: firmaRecibe != null
-                                    ? Image.memory(firmaRecibe!)
-                                    : const Center(child: Text('Sin firma')),
-                              ),
-                              if (nombreRecibe != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4.0),
-                                  child: Text(
-                                    nombreRecibe!,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  TextButton.icon(
-                                    icon: const Icon(Icons.edit),
-                                    label: const Text('Firmar'),
-                                    onPressed: () => _firmar(
-                                      firmaRecibeController,
-                                      'Firma de quien recibe el servicio',
-                                      nombreRecibeDialogController,
-                                      false,
-                                    ),
-                                  ),
-                                  if (firmaRecibe != null)
-                                    TextButton.icon(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      label: const Text('Eliminar'),
-                                      onPressed: () => _eliminarFirma(false),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Aviso legal y ambiental de CAFRI
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                margin: const EdgeInsets.only(bottom: 24),
-                decoration: BoxDecoration(
-                  color: Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey),
-                ),
-                child: const Text(
-                  'En CAFRI, estamos comprometidos con la reducción del uso de papel y trabajamos continuamente para ser más amigables con el medio ambiente. '
-                  'Nos esforzamos en la mejora constante y la actualización de nuestros sistemas para minimizar nuestro impacto ecológico.\n\n'
-                  '(999) 102 1232 / (999) 490 1637   cafrimx.com\n\n'
-                  'Este documento es propiedad de la empresa CAFRI COMPAÑÍA DE AIRE ACONDICIONADO Y FRIGORIFICOS DEL SURESTE S.A. DE C.V. con domicilio en Calle 59 K, 537 Cp. 97230 en la ciudad de Mérida, Yucatán, '
-                  'por lo que queda prohibida la reproducción parcial o total de este documento y se tomarán acciones legales.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
-                ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Guardar como PDF'),
+                onPressed: () async {
+                  // Carga el logo como bytes      lib\assets\cafrilogo.jpg
+                  final logoBytes = await rootBundle.load('lib/assets/cafrilogo.jpg');
+                  final logoUint8List = logoBytes.buffer.asUint8List();
+
+                  List<Map<String, dynamic>> fotosInicio = fotosMantenimientoInicio.map((item) => {
+                    'file': item.file,
+                    'descripcion': item.descripcionController.text,
+                  }).toList();
+                  List<Map<String, dynamic>> fotosProceso = fotosMantenimientoProceso.map((item) => {
+                    'file': item.file,
+                    'descripcion': item.descripcionController.text,
+                  }).toList();
+                  List<Map<String, dynamic>> fotosFin = fotosMantenimientoFin.map((item) => {
+                    'file': item.file,
+                    'descripcion': item.descripcionController.text,
+                  }).toList();
+
+                  final pdfBytes = await PdfGenerator.generatePdf(
+                    folio: folioActual,
+                    nombreCliente: campoNombreCliente.text,
+                    hablarCon: hablarcon.text,
+                    identificacion: identificacion.text,
+                    actividadPara: actividadParaController.text,
+                    actividadTipoTarea: actividadTipoTareaController.text,
+                    descripcionTarea: descripcionTareaController.text,
+                    modeloEvaporador: modeloEvaporadorController.text,
+                    serieEvaporador: serieEvaporadorController.text,
+                    capacidadEvaporador: capacidadEvaporadorController.text,
+                    descripcionTrabajoRealizado: descripcionTrabajoRealizadoController.text,
+                    fotosInicio: fotosInicio,
+                    fotosProceso: fotosProceso,
+                    fotosFin: fotosFin,
+                    imagenesEvaporadores: imagenesEvaporadores,
+                    firmaTecnico: firmaTecnico,
+                    nombreTecnico: nombreTecnico,
+                    firmaRecibe: firmaRecibe,
+                    nombreRecibe: nombreRecibe,
+                    fechaFormateada: fechaFormateada,
+                    logoBytes: logoUint8List, // Nuevo parámetro
+                  );
+
+                  // Incrementa el folio solo después de guardar el PDF
+                  setState(() {
+                    _folioGlobal++;
+                    folioActual = _folioGlobal;
+                  });
+
+                  await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
+                },
               ),
             ],
           ),
@@ -804,9 +529,9 @@ class _FormularioPDFState extends State<FormularioPDF> {
     );
   }
 
-  // Widget auxiliar para secciones con título
   Widget _seccionConTitulo(String titulo, Widget child) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey),
         borderRadius: BorderRadius.circular(8),
@@ -815,7 +540,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: const BoxDecoration(
               color: Color(0xFFE0E0E0),
               borderRadius: BorderRadius.only(
@@ -835,7 +560,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             child: child,
           ),
         ],
@@ -844,7 +569,6 @@ class _FormularioPDFState extends State<FormularioPDF> {
   }
 }
 
-// Widget para lista de fotos y descripciones dinámicas
 class FotoDescripcionLista extends StatefulWidget {
   final String encabezadoFoto;
   final String encabezadoDescripcion;
@@ -884,7 +608,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Encabezado de la fila
         Row(
           children: [
             Expanded(
@@ -904,7 +627,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
           ],
         ),
         const SizedBox(height: 8),
-        // Botón para agregar foto
         Align(
           alignment: Alignment.centerLeft,
           child: ElevatedButton.icon(
@@ -914,7 +636,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
           ),
         ),
         const SizedBox(height: 12),
-        // Lista de fotos y descripciones
         if (widget.items.isEmpty)
           const Text('No hay fotos agregadas.'),
         ...widget.items.asMap().entries.map((entry) {
@@ -925,7 +646,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Imagen
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
@@ -936,7 +656,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Descripción
                 Expanded(
                   child: TextField(
                     controller: item.descripcionController,
@@ -947,7 +666,6 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Botón eliminar
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: () => widget.onRemove(idx),
@@ -970,4 +688,213 @@ class FotoDescripcionItem {
     required this.file,
     required this.descripcionController,
   });
+}
+
+class PdfGenerator {
+  static Future<Uint8List> generatePdf({
+    required int folio,
+    required String nombreCliente,
+    required String hablarCon,
+    required String identificacion,
+    required String actividadPara,
+    required String actividadTipoTarea,
+    required String descripcionTarea,
+    required String modeloEvaporador,
+    required String serieEvaporador,
+    required String capacidadEvaporador,
+    required String descripcionTrabajoRealizado,
+    required List<Map<String, dynamic>> fotosInicio,
+    required List<Map<String, dynamic>> fotosProceso,
+    required List<Map<String, dynamic>> fotosFin,
+    required List<File> imagenesEvaporadores,
+    Uint8List? firmaTecnico,
+    String? nombreTecnico,
+    Uint8List? firmaRecibe,
+    String? nombreRecibe,
+    required String fechaFormateada,
+    required Uint8List logoBytes, // Nuevo parámetro
+  }) async {
+    final pdf = pw.Document();
+
+    pw.Widget buildFotoDescripcion(List<Map<String, dynamic>> fotos, String titulo) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(titulo, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          ...fotos.map((foto) => pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              if (foto['file'] != null)
+                pw.Container(
+                  width: 60,
+                  height: 60,
+                  child: pw.Image(
+                    pw.MemoryImage(File(foto['file'].path).readAsBytesSync()),
+                    fit: pw.BoxFit.cover,
+                  ),
+                ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                child: pw.Text(foto['descripcion'] ?? ''),
+              ),
+            ],
+          )),
+          pw.SizedBox(height: 8),
+        ],
+      );
+    }
+
+    pw.Widget buildImagenesEvaporadores(List<File> imagenes) {
+      if (imagenes.isEmpty) return pw.Text('No hay imágenes agregadas.');
+      return pw.Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: imagenes.map((img) => pw.Container(
+          width: 60,
+          height: 60,
+          child: pw.Image(pw.MemoryImage(img.readAsBytesSync()), fit: pw.BoxFit.cover),
+        )).toList(),
+      );
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        build: (context) => [
+          // Encabezado con logo y datos empresariales
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(
+                width: 80,
+                height: 80,
+                child: pw.Image(pw.MemoryImage(logoBytes), fit: pw.BoxFit.contain),
+              ),
+              pw.SizedBox(width: 16),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('HOJA DE SERVICIO', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                    pw.Text('COMPAÑÍA DE AIRE ACONDICIONADO Y FRIGORIFICOS DEL SURESTE S.A. DE C.V.'),
+                    pw.Text('Teléfono: (999) 102 1232'),
+                    pw.Text('Número de identificación empresarial: AAF2306305G0'),
+                    pw.Text('Email: contacto@cafrimx.com'),
+                    pw.Text('Dirección: C. 59K N°537 POR 112 Y 114 COL. BOJORQUEZ C.P 97230'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text('Fecha: $fechaFormateada'),
+          pw.Text('Folio (Tarea): $folio', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Divider(),
+
+          pw.Text('Información del cliente', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text('Nombre del cliente: $nombreCliente'),
+          pw.Text('Hablar con: $hablarCon'),
+          pw.Text('Identificación: $identificacion'),
+          pw.SizedBox(height: 8),
+
+          pw.Text('Información de las actividades', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text('Para: $actividadPara'),
+          pw.Text('Tipo de tarea: $actividadTipoTarea'),
+          pw.Text('Descripción de la tarea: $descripcionTarea'),
+          pw.SizedBox(height: 8),
+
+          pw.Text('MODELO, SERIE, CAPACIDAD DE CONDENSADORES', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Table(
+            border: pw.TableBorder.all(),
+            children: [
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text('Modelo', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text('Serie', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text('Capacidad', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text(modeloEvaporador),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text(serieEvaporador),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(4),
+                    child: pw.Text(capacidadEvaporador),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+
+          pw.Text('Imágenes de evaporadores/condensadores', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          buildImagenesEvaporadores(imagenesEvaporadores),
+          pw.SizedBox(height: 8),
+
+          buildFotoDescripcion(fotosInicio, 'Fotos de inicio del servicio'),
+          buildFotoDescripcion(fotosProceso, 'Fotos de proceso del servicio'),
+          buildFotoDescripcion(fotosFin, 'Fotos de fin del servicio'),
+
+          pw.Text('Descripción del trabajo realizado', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(descripcionTrabajoRealizado),
+          pw.SizedBox(height: 12),
+
+          pw.Row(
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  children: [
+                    pw.Text('Firma del técnico', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    if (firmaTecnico != null)
+                      pw.Image(pw.MemoryImage(firmaTecnico), height: 60),
+                    if (nombreTecnico != null)
+                      pw.Text(nombreTecnico),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  children: [
+                    pw.Text('Firma de quien recibe', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    if (firmaRecibe != null)
+                      pw.Image(pw.MemoryImage(firmaRecibe), height: 60),
+                    if (nombreRecibe != null)
+                      pw.Text(nombreRecibe),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'En CAFRI, estamos comprometidos con la reducción del uso de papel y trabajamos continuamente para ser más amigables con el medio ambiente. '
+            'Nos esforzamos en la mejora constante y la actualización de nuestros sistemas para minimizar nuestro impacto ecológico.\n\n'
+            '(999) 102 1232 / (999) 490 1637   cafrimx.com\n\n'
+            'Este documento es propiedad de la empresa CAFRI COMPAÑÍA DE AIRE ACONDICIONADO Y FRIGORIFICOS DEL SURESTE S.A. DE C.V. con domicilio en Calle 59 K, 537 Cp. 97230 en la ciudad de Mérida, Yucatán, '
+            'por lo que queda prohibida la reproducción parcial o total de este documento y se tomarán acciones legales.',
+            style: pw.TextStyle(fontSize: 10),
+            textAlign: pw.TextAlign.center,
+          ),
+        ],
+      ),
+    );
+
+    return pdf.save();
+  }
 }
