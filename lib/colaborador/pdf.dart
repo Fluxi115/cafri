@@ -33,8 +33,6 @@ class _FormularioPDFState extends State<FormularioPDF> {
   final List<FotoDescripcionItem> fotosMantenimientoInicio = [];
   final List<FotoDescripcionItem> fotosMantenimientoProceso = [];
   final List<FotoDescripcionItem> fotosMantenimientoFin = [];
-
-  // Lista para imágenes extra de evaporadores/condensadores
   final List<File> imagenesEvaporadores = [];
 
   // Controladores y datos para firmas y nombres
@@ -56,7 +54,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
     folioActual = _folioGlobal;
   }
 
-  // Método para mostrar el diálogo de firma y pedir nombre
+  // Diálogo para firmar y capturar nombre
   Future<void> _firmar(SignatureController controller, String titulo, TextEditingController nombreController, bool esTecnico) async {
     if (esTecnico && nombreTecnico != null) {
       nombreController.text = nombreTecnico!;
@@ -77,9 +75,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
               children: [
                 TextField(
                   controller: nombreController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Nombre'),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -146,6 +142,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
     });
   }
 
+  // Encabezado con logo y datos empresariales
   Widget _encabezadoCafri() {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -161,7 +158,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.asset(
-              "lib/assets/cafrilogo.jpg",
+              "assets/cafrilogo.jpg", // Ruta UNIFICADA para app y PDF
               width: 80,
               height: 80,
               fit: BoxFit.contain,
@@ -174,19 +171,12 @@ class _FormularioPDFState extends State<FormularioPDF> {
               children: const [
                 Text(
                   'HOJA DE SERVICIO',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    letterSpacing: 1.2,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2),
                 ),
                 SizedBox(height: 4),
                 Text(
                   'COMPAÑÍA DE AIRE ACONDICIONADO Y FRIGORIFICOS DEL SURESTE S.A. DE C.V.',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 SizedBox(height: 4),
                 Text('Teléfono: (999) 102 1232'),
@@ -205,10 +195,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Imágenes de evaporadores/condensadores',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        const Text('Imágenes de evaporadores/condensadores', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -317,14 +304,8 @@ class _FormularioPDFState extends State<FormularioPDF> {
               // Folio autoincremental (solo lectura)
               Row(
                 children: [
-                  const Text(
-                    'Folio (Tarea): ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    folioActual.toString(),
-                    style: const TextStyle(fontSize: 16),
-                  ),
+                  const Text('Folio (Tarea): ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(folioActual.toString(), style: const TextStyle(fontSize: 16)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -472,8 +453,8 @@ class _FormularioPDFState extends State<FormularioPDF> {
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text('Guardar como PDF'),
                 onPressed: () async {
-                  // Carga el logo como bytes      lib\assets\cafrilogo.jpg
-                  final logoBytes = await rootBundle.load('lib/assets/cafrilogo.jpg');
+                  // Carga el logo como bytes desde la ruta UNIFICADA
+                  final logoBytes = await rootBundle.load('assets/cafrilogo.jpg');
                   final logoUint8List = logoBytes.buffer.asUint8List();
 
                   List<Map<String, dynamic>> fotosInicio = fotosMantenimientoInicio.map((item) => {
@@ -510,7 +491,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
                     firmaRecibe: firmaRecibe,
                     nombreRecibe: nombreRecibe,
                     fechaFormateada: fechaFormateada,
-                    logoBytes: logoUint8List, // Nuevo parámetro
+                    logoBytes: logoUint8List,
                   );
 
                   // Incrementa el folio solo después de guardar el PDF
@@ -519,7 +500,11 @@ class _FormularioPDFState extends State<FormularioPDF> {
                     folioActual = _folioGlobal;
                   });
 
-                  await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
+                  // El nombre del archivo PDF será Tarea(folio).pdf
+                  await Printing.layoutPdf(
+                    onLayout: (format) async => pdfBytes,
+                    name: 'Tarea($folioActual).pdf',
+                  );
                 },
               ),
             ],
@@ -551,10 +536,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
             child: Center(
               child: Text(
                 titulo,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -569,6 +551,7 @@ class _FormularioPDFState extends State<FormularioPDF> {
   }
 }
 
+// Widget para lista de fotos y descripciones dinámicas
 class FotoDescripcionLista extends StatefulWidget {
   final String encabezadoFoto;
   final String encabezadoDescripcion;
@@ -659,9 +642,7 @@ class _FotoDescripcionListaState extends State<FotoDescripcionLista> {
                 Expanded(
                   child: TextField(
                     controller: item.descripcionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Descripción'),
                     maxLines: 3,
                   ),
                 ),
@@ -690,6 +671,7 @@ class FotoDescripcionItem {
   });
 }
 
+// Generador de PDF
 class PdfGenerator {
   static Future<Uint8List> generatePdf({
     required int folio,
@@ -712,7 +694,7 @@ class PdfGenerator {
     Uint8List? firmaRecibe,
     String? nombreRecibe,
     required String fechaFormateada,
-    required Uint8List logoBytes, // Nuevo parámetro
+    required Uint8List logoBytes,
   }) async {
     final pdf = pw.Document();
 
